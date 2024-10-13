@@ -1,0 +1,91 @@
+class ImageViewerApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Image Viewer")
+        self.selected_images = []  # Mảng lưu các ảnh đã chọn
+        self.images_and_labels = load_images_and_labels()  # Load ảnh ban đầu
+        self.select_all_var = tk.IntVar()  # Biến để kiểm tra trạng thái "Chọn tất cả"
+        
+        self.create_widgets()
+
+    # Tạo giao diện để hiển thị ảnh và label
+    def create_widgets(self):
+        self.main_frame = tk.Frame(self.root)
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.display_images()  # Hiển thị ảnh ban đầu
+
+        btn_frame = tk.Frame(self.root)
+        btn_frame.pack(side=tk.BOTTOM)
+
+        # Checkbox "Chọn tất cả"
+        select_all_checkbox = tk.Checkbutton(btn_frame, text="Chọn tất cả", variable=self.select_all_var, command=self.select_all_images)
+        select_all_checkbox.pack(side=tk.LEFT)
+
+        delete_btn = tk.Button(btn_frame, text="Chuyển Tabs (Xóa ảnh)", command=self.switch_to_next_tab)
+        delete_btn.pack(side=tk.LEFT)
+
+        # Hiển thị tiến độ
+        self.progress_label = tk.Label(self.root, text=f"Tiến độ: {calculate_progress():.2f}% hoàn thành")
+        self.progress_label.pack(side=tk.BOTTOM)
+
+    # Hàm để chọn hoặc bỏ chọn tất cả ảnh
+    def select_all_images(self):
+        select_all_state = self.select_all_var.get()  # Lấy trạng thái của "Chọn tất cả"
+        for img_path, check_var in self.selected_images:
+            check_var.set(select_all_state)  # Cập nhật trạng thái checkbox của từng ảnh
+
+    # Hiển thị ảnh và label
+    def display_images(self):
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+
+        for i, (image_path, label) in enumerate(self.images_and_labels):
+            frame = tk.Frame(self.main_frame, relief=tk.RAISED, bd=2)
+            frame.grid(row=i // 14, column=i % 14, padx=3, pady=0)
+
+            # Load ảnh
+            img = Image.open(image_path)
+            img.thumbnail((75, 75))  # Resize ảnh
+            img = ImageTk.PhotoImage(img)
+
+            img_label = tk.Label(frame, image=img)
+            img_label.image = img
+            img_label.pack()
+
+            label_text = tk.Label(frame, text=label, font=("Helvetica", 15))
+            label_text.pack()
+
+            check_var = tk.IntVar()
+            checkbox = tk.Checkbutton(frame, text="Chọn", variable=check_var)
+            checkbox.pack()
+            self.selected_images.append((image_path, check_var))  # Thêm ảnh và checkbox vào mảng
+
+    # Xóa ảnh đã chọn và lưu ảnh không được chọn vào confirmed.txt
+    def switch_to_next_tab(self):
+        to_delete = [img for img, var in self.selected_images if var.get() == 1]  # Ảnh được chọn để xóa
+        to_keep = [img for img, var in self.selected_images if var.get() == 0]  # Ảnh không được chọn để lưu
+
+        # Xóa ảnh đã chọn
+        for img_path in to_delete:
+            label_path = img_path.replace(".jpeg", ".txt")
+            try:
+                os.remove(img_path)  # Xóa ảnh
+                os.remove(label_path)  # Xóa file txt tương ứng
+            except OSError as e:
+                messagebox.showerror("Lỗi", f"Không thể xóa {img_path} hoặc {label_path}.\nLỗi: {e}")
+
+        # Lưu các ảnh không được chọn vào confirmed.txt
+        save_confirmed_images(to_keep)
+
+        # Tải lại ảnh mới từ folder mà không trùng với confirmed_images
+        self.images_and_labels = load_images_and_labels()
+
+        # Xóa mảng selected_images sau khi chuyển tab
+        self.selected_images.clear()
+
+        # Xóa màn hình hiện tại và hiển thị ảnh mới
+        self.display_images()
+
+        # Cập nhật tiến độ sau khi chuyển tab
+        self.progress_label.config(text=f"Tiến độ: {calculate_progress():.2f}% hoàn thành")
